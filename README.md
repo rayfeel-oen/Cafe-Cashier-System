@@ -122,4 +122,4 @@ Menggunakan tema gelap bernuansa kopi dengan palet warna:
 
 ## 👤 Author
 
-Dibuat sebagai project tugas kuliah — Surabaya, 2026.
+Dibuat sebagai project tugas kuliah — Malang, 2026.
