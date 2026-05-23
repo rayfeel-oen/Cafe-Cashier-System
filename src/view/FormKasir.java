@@ -311,7 +311,7 @@ public class FormKasir extends JFrame {
         pay.add(rowTotal);
         pay.add(Box.createVerticalStrut(10));
 
-        JLabel lblBayarLbl = payLabel("JUMLAH BAYAR");
+        JLabel lblBayarLbl = payLabel("JUMLAH UANG DITERIMA");
         lblBayarLbl.setAlignmentX(LEFT_ALIGNMENT);
         pay.add(lblBayarLbl);
         pay.add(Box.createVerticalStrut(5));
@@ -539,14 +539,58 @@ public class FormKasir extends JFrame {
             int idOrder = rs.next() ? rs.getInt(1) : 0;
 
             for (int i = 0; i < modelKeranjang.getRowCount(); i++) {
+                int idMenu = (int) tableKeranjang.getValueAt(i, 0);
+                int qty    = (int) tableKeranjang.getValueAt(i, 3);
+
                 PreparedStatement pstDetail = conn.prepareStatement(
                     "INSERT INTO order_details(id_order, id_menu, qty, subtotal) VALUES(?,?,?,?)"
                 );
                 pstDetail.setInt(1, idOrder);
-                pstDetail.setInt(2, (int) tableKeranjang.getValueAt(i, 0));
-                pstDetail.setInt(3, (int) tableKeranjang.getValueAt(i, 3));
+                pstDetail.setInt(2, idMenu);
+                pstDetail.setInt(3, qty);
                 pstDetail.setDouble(4, (double) tableKeranjang.getValueAt(i, 4));
                 pstDetail.executeUpdate();
+
+                // ── Kurangi stok menu sesuai qty yang dipesan ──
+                PreparedStatement pstStok = conn.prepareStatement(
+                    "UPDATE menu SET stok = stok - ? WHERE id_menu = ? AND stok >= ?"
+                );
+                pstStok.setInt(1, qty);
+                pstStok.setInt(2, idMenu);
+                pstStok.setInt(3, qty);
+                int updated = pstStok.executeUpdate();
+                if (updated == 0) {
+                    // Stok tidak cukup — batalkan SELURUH transaksi
+                    String namaMenu = tableKeranjang.getValueAt(i, 1).toString();
+
+                    // Kembalikan stok yang sudah dikurangi di iterasi sebelumnya
+                    PreparedStatement pstRestore = conn.prepareStatement(
+                        "UPDATE menu m JOIN order_details od ON m.id_menu = od.id_menu " +
+                        "SET m.stok = m.stok + od.qty WHERE od.id_order = ?");
+                    pstRestore.setInt(1, idOrder);
+                    pstRestore.executeUpdate();
+
+                    // Hapus detail & order
+                    conn.prepareStatement("DELETE FROM order_details WHERE id_order=" + idOrder).executeUpdate();
+                    conn.prepareStatement("DELETE FROM orders WHERE id_order=" + idOrder).executeUpdate();
+
+                    // Cek stok aktual untuk info ke kasir
+                    int stokAktual = 0;
+                    try {
+                        PreparedStatement pstCek = conn.prepareStatement("SELECT stok FROM menu WHERE id_menu=?");
+                        pstCek.setInt(1, idMenu);
+                        ResultSet rsCek = pstCek.executeQuery();
+                        if (rsCek.next()) stokAktual = rsCek.getInt("stok");
+                    } catch (Exception ignored) {}
+
+                    JOptionPane.showMessageDialog(this,
+                        "<html>\u26A0 <b>Transaksi Dibatalkan!</b><br><br>"
+                        + "Stok <b>\"" + namaMenu + "\"</b> tidak mencukupi.<br>"
+                        + "Sisa stok: <b>" + stokAktual + "</b> &nbsp;|&nbsp; Dibutuhkan: <b>" + qty + "</b><br><br>"
+                        + "Kurangi qty atau minta admin tambah stok.</html>",
+                        "Stok Tidak Cukup \u2014 Order Dibatalkan", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
             }
 
             cetakStruk(idOrder, total, bayar, kembalian);

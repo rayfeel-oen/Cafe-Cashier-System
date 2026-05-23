@@ -1,0 +1,368 @@
+package view;
+
+import connection.Koneksi;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.awt.event.*;
+import java.sql.*;
+
+import static view.FormLogin.*;
+import static view.FormKasir.*;
+
+public class FormMenu extends JFrame {
+
+    JTable tableMenu;
+    DefaultTableModel model;
+
+    JTextField txtNama;
+    JTextField txtKategori;
+    JTextField txtHarga;
+    JTextField txtStok;
+
+    JButton btnTambah;
+    JButton btnEdit;
+    JButton btnHapus;
+
+    private Connection getConn() throws SQLException {
+        return Koneksi.requireConnection();
+    }
+
+    public FormMenu() {
+        setTitle("Café POS — Kelola Menu");
+        setSize(820, 580);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+
+        JPanel root = darkPanel();
+        root.setLayout(new BorderLayout());
+        setContentPane(root);
+
+        root.add(buildTopBar(), BorderLayout.NORTH);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                buildFormPanel(), buildTablePanel());
+        split.setDividerLocation(260);
+        split.setDividerSize(1);
+        split.setBorder(null);
+        split.setBackground(ESPRESSO);
+        root.add(split, BorderLayout.CENTER);
+
+        root.add(buildNavBar(), BorderLayout.SOUTH);
+
+        tampilData();
+    }
+
+    private JPanel buildTopBar() {
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setBackground(ROAST);
+        bar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, MAHOGANY),
+            new EmptyBorder(12, 20, 12, 20)
+        ));
+        JLabel title = new JLabel("\uD83D\uDCCB  Kelola Menu Café");
+        title.setFont(new Font("Georgia", Font.BOLD, 18));
+        title.setForeground(CREAM);
+        bar.add(title, BorderLayout.WEST);
+        return bar;
+    }
+
+    private JPanel buildFormPanel() {
+        JPanel panel = new JPanel();
+        panel.setBackground(ROAST);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 16));
+
+        panel.add(sectionTitle("Form Menu"));
+        panel.add(Box.createVerticalStrut(4));
+
+        txtNama     = addFormField(panel, "NAMA MENU", "contoh: Espresso");
+        txtKategori = addFormField(panel, "KATEGORI",  "Minuman / Makanan");
+        txtHarga    = addFormField(panel, "HARGA (Rp)", "contoh: 25000");
+        txtStok     = addFormField(panel, "STOK",       "contoh: 50");
+
+        panel.add(Box.createVerticalStrut(16));
+
+        btnTambah = makeCaramelButton("\u2795  Tambah");
+        btnTambah.addActionListener(e -> tambahData());
+        btnTambah.setAlignmentX(LEFT_ALIGNMENT);
+        panel.add(btnTambah);
+        panel.add(Box.createVerticalStrut(8));
+
+        btnEdit = makeOutlineButton("\u270F  Edit");
+        btnEdit.addActionListener(e -> editData());
+        btnEdit.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        btnEdit.setAlignmentX(LEFT_ALIGNMENT);
+        panel.add(btnEdit);
+        panel.add(Box.createVerticalStrut(8));
+
+        btnHapus = makeDangerButton("\uD83D\uDDD1  Hapus");
+        btnHapus.addActionListener(e -> hapusData());
+        btnHapus.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        btnHapus.setAlignmentX(LEFT_ALIGNMENT);
+        panel.add(btnHapus);
+
+        panel.add(Box.createVerticalGlue());
+        return panel;
+    }
+
+    private JTextField addFormField(JPanel parent, String labelText, String placeholder) {
+        JLabel lbl = new JLabel(labelText);
+        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lbl.setForeground(MUTED);
+        lbl.setAlignmentX(LEFT_ALIGNMENT);
+        parent.add(lbl);
+        parent.add(Box.createVerticalStrut(5));
+
+        JTextField field = new JTextField();
+        field.setToolTipText(placeholder);
+        styleField(field);
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        field.setAlignmentX(LEFT_ALIGNMENT);
+        parent.add(field);
+        parent.add(Box.createVerticalStrut(12));
+        return field;
+    }
+
+    private JPanel buildTablePanel() {
+        JPanel panel = darkPanel();
+        panel.setLayout(new BorderLayout());
+        panel.setBorder(new EmptyBorder(20, 8, 20, 20));
+
+        JLabel lbl = sectionTitle("Data Menu");
+        panel.add(lbl, BorderLayout.NORTH);
+
+        model = new DefaultTableModel() {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        model.addColumn("ID");
+        model.addColumn("Nama");
+        model.addColumn("Kategori");
+        model.addColumn("Harga");
+        model.addColumn("Stok");
+
+        tableMenu = new JTable(model);
+        styleTable(tableMenu);
+        tableMenu.getColumnModel().getColumn(0).setMaxWidth(40);
+        tableMenu.getColumnModel().getColumn(4).setMaxWidth(60);
+
+        // Kategori badge renderer — matches "Minuman" / "Makanan"
+        tableMenu.getColumnModel().getColumn(2).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object val,
+                    boolean sel, boolean foc, int row, int col) {
+                JLabel badge = new JLabel(val != null ? val.toString() : "");
+                badge.setOpaque(true);
+                badge.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                badge.setBorder(new EmptyBorder(4, 8, 4, 8));
+                String cat = val != null ? val.toString().toLowerCase() : "";
+                if (sel) {
+                    badge.setBackground(MAHOGANY); badge.setForeground(CARAMEL);
+                } else if (cat.contains("minuman")) {
+                    badge.setBackground(new Color(0x0D1E2A)); badge.setForeground(new Color(0x6BAED6));
+                } else if (cat.contains("makanan")) {
+                    badge.setBackground(new Color(0x0D2010)); badge.setForeground(new Color(0x74C476));
+                } else {
+                    badge.setBackground(new Color(0x2D1810)); badge.setForeground(LATTE);
+                }
+                return badge;
+            }
+        });
+
+        // Harga renderer
+        tableMenu.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object val,
+                    boolean sel, boolean foc, int r, int c) {
+                super.getTableCellRendererComponent(t, val, sel, foc, r, c);
+                if (val instanceof Number) {
+                    setText("Rp " + FormKasir.IDR.format(((Number) val).longValue()));
+                }
+                setForeground(sel ? CREAM : CARAMEL);
+                return this;
+            }
+        });
+
+        // Row click → populate form
+        tableMenu.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                int baris = tableMenu.getSelectedRow();
+                if (baris >= 0) {
+                    txtNama.setText(model.getValueAt(baris, 1).toString());
+                    txtKategori.setText(model.getValueAt(baris, 2).toString());
+                    txtHarga.setText(model.getValueAt(baris, 3).toString());
+                    txtStok.setText(model.getValueAt(baris, 4).toString());
+                }
+            }
+        });
+
+        panel.add(styledScrollPane(tableMenu), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel buildNavBar() {
+        JPanel nav = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        nav.setBackground(ROAST);
+        nav.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, MAHOGANY));
+
+        JButton bKasir   = makeOutlineButton("\uD83E\uDDFE  Kasir");
+        bKasir.addActionListener(e -> { new FormKasir().setVisible(true); dispose(); });
+
+        JButton bLaporan = makeOutlineButton("\uD83D\uDCCA  Laporan");
+        bLaporan.addActionListener(e -> { new FormLaporan().setVisible(true); dispose(); });
+
+        JButton bLogout  = makeDangerButton("\uD83D\uDEAA  Logout");
+        bLogout.addActionListener(e -> { new FormLogin().setVisible(true); dispose(); });
+
+        nav.add(bKasir);
+        nav.add(bLaporan);
+        nav.add(Box.createHorizontalStrut(20));
+        nav.add(bLogout);
+        return nav;
+    }
+
+    // ── LOGIC ─────────────────────────────────────
+
+    private void tampilData() {
+        model.setRowCount(0);
+        try {
+            ResultSet rs = getConn().createStatement().executeQuery(
+                "SELECT id_menu, nama_menu, kategori, harga, stok FROM menu ORDER BY kategori, nama_menu"
+            );
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getInt("id_menu"),
+                    rs.getString("nama_menu"),
+                    rs.getString("kategori"),
+                    rs.getDouble("harga"),
+                    rs.getInt("stok")
+                });
+            }
+        } catch (Exception e) {
+            showDbError(e);
+        }
+    }
+
+    private void tambahData() {
+        if (txtNama.getText().isEmpty() || txtKategori.getText().isEmpty()
+                || txtHarga.getText().isEmpty() || txtStok.getText().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Semua field wajib diisi!", "Perhatian", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        try {
+            String nama     = txtNama.getText().trim();
+            String kategori = txtKategori.getText().trim();
+            double harga    = Double.parseDouble(txtHarga.getText().trim());
+            int    stok     = Integer.parseInt(txtStok.getText().trim());
+
+            Connection conn = getConn();
+
+            // ── Cegah double input: cek nama menu yang sama (case-insensitive) ──
+            PreparedStatement pstCek = conn.prepareStatement(
+                "SELECT COUNT(*) FROM menu WHERE LOWER(nama_menu) = LOWER(?)");
+            pstCek.setString(1, nama);
+            ResultSet rsCek = pstCek.executeQuery();
+            rsCek.next();
+            if (rsCek.getInt(1) > 0) {
+                JOptionPane.showMessageDialog(this,
+                    "<html>Menu <b>\"" + nama + "\"</b> sudah ada!<br>"
+                    + "Gunakan nama yang berbeda atau edit menu yang sudah ada.</html>",
+                    "Duplikat Ditolak", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // ── Generate ID manual: ambil MAX id_menu + 1 ──
+            ResultSet rsId = conn.createStatement().executeQuery("SELECT COALESCE(MAX(id_menu), 0) + 1 FROM menu");
+            rsId.next();
+            int newId = rsId.getInt(1);
+
+            PreparedStatement pst = conn.prepareStatement(
+                "INSERT INTO menu(id_menu, nama_menu, kategori, harga, stok) VALUES(?,?,?,?,?)");
+            pst.setInt(1, newId);
+            pst.setString(2, nama);
+            pst.setString(3, kategori);
+            pst.setDouble(4, harga);
+            pst.setInt(5, stok);
+            pst.executeUpdate();
+
+            clearForm();
+            tampilData();
+            JOptionPane.showMessageDialog(this, "\u2705 Data berhasil ditambah! (ID: " + newId + ")");
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Harga dan Stok harus berupa angka!", "Format Error", JOptionPane.WARNING_MESSAGE);
+        } catch (Exception e) {
+            showDbError(e);
+        }
+    }
+
+    private void editData() {
+        int baris = tableMenu.getSelectedRow();
+        if (baris < 0) {
+            JOptionPane.showMessageDialog(this, "Pilih data yang ingin diedit!", "Perhatian", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        try {
+            int id = (int) model.getValueAt(baris, 0);
+            PreparedStatement pst = getConn().prepareStatement(
+                "UPDATE menu SET nama_menu=?, kategori=?, harga=?, stok=? WHERE id_menu=?");
+            pst.setString(1, txtNama.getText().trim());
+            pst.setString(2, txtKategori.getText().trim());
+            pst.setDouble(3, Double.parseDouble(txtHarga.getText()));
+            pst.setInt(4, Integer.parseInt(txtStok.getText()));
+            pst.setInt(5, id);
+            pst.executeUpdate();
+            clearForm();
+            tampilData();
+            JOptionPane.showMessageDialog(this, "\u2705 Data berhasil diperbarui!");
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Harga dan Stok harus berupa angka!", "Format Error", JOptionPane.WARNING_MESSAGE);
+        } catch (Exception e) {
+            showDbError(e);
+        }
+    }
+
+    private void hapusData() {
+        int baris = tableMenu.getSelectedRow();
+        if (baris < 0) {
+            JOptionPane.showMessageDialog(this, "Pilih data yang ingin dihapus!", "Perhatian", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String nama = model.getValueAt(baris, 1).toString();
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Yakin ingin menghapus menu \"" + nama + "\"?",
+            "Konfirmasi Hapus", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+        try {
+            int id = (int) model.getValueAt(baris, 0);
+            PreparedStatement pst = getConn().prepareStatement("DELETE FROM menu WHERE id_menu=?");
+            pst.setInt(1, id);
+            pst.executeUpdate();
+            clearForm();
+            tampilData();
+            JOptionPane.showMessageDialog(this, "\u2705 Data berhasil dihapus!");
+        } catch (Exception e) {
+            showDbError(e);
+        }
+    }
+
+    private void clearForm() {
+        txtNama.setText("");
+        txtKategori.setText("");
+        txtHarga.setText("");
+        txtStok.setText("");
+        tableMenu.clearSelection();
+    }
+
+    private void showDbError(Exception e) {
+        String msg = e.getMessage();
+        if (msg == null || msg.contains("null")) {
+            msg = "Koneksi ke database terputus.\nSilakan periksa MySQL server.";
+        }
+        JOptionPane.showMessageDialog(this,
+            "<html><b>Terjadi kesalahan database:</b><br><br>" + msg + "</html>",
+            "Database Error", JOptionPane.ERROR_MESSAGE);
+    }
+}
